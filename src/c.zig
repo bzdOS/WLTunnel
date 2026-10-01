@@ -6,6 +6,9 @@
 // PUBLIC_API: c (comptime namespace of libc + lz4 symbols).
 // END_AI_HEADER
 
+// _FORTIFY_SOURCE=0 is passed as a real -D flag from build.zig's c_mod.addCMacro (NOT via
+// @cDefine here — @cDefine("_FORTIFY_SOURCE", "0") would emit a C STRING literal define,
+// breaking ssp.h's `#if _FORTIFY_SOURCE > 0` numeric comparison). See build.zig for why.
 pub const c = @cImport({
     @cInclude("stddef.h");
     @cInclude("stdio.h");

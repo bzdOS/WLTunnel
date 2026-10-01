@@ -56,6 +56,20 @@ pub fn build(b: *std.Build) void {
     });
     c_mod.addIncludePath(.{ .cwd_relative = inc_dir });
     c_mod.addIncludePath(lz4_inc);
+    // FreeBSD's <ssp/unistd.h> (pulled in transitively by unistd.h/sys/socket.h) declares
+    // fortify-source wrappers (read/poll/recv/recvmsg...) whose real implementation is
+    // reached via __RENAME(symbol) — a compiler attribute that aliases the declared name
+    // (e.g. __ssp_real_read) directly onto the plain libc symbol (read) at COMPILE time, so
+    // the alias is never meant to be independently linkable. zig's @cImport/translate-c does
+    // not preserve this BSD-specific renaming attribute, so the aliased name leaks through
+    // as a literal, unresolved external symbol -> `ld.lld: undefined symbol: __ssp_real_read`
+    // (and _poll/_recv/_recvmsg) at link time, only with -Doptimize=ReleaseSafe (zig's C
+    // translation apparently only pulls in the fortified headers at that optimize level).
+    // _FORTIFY_SOURCE>0 is what gates ssp.h's redirect macros (see
+    // /usr/include/ssp/ssp.h); a real -D flag (not @cDefine, which would emit a C STRING
+    // literal and break the numeric #if) skips the fortified declarations entirely and
+    // falls back to the plain, directly-linkable prototypes -- all this project ever calls.
+    c_mod.addCMacro("_FORTIFY_SOURCE", "0");
 
     // Shared Wayland tracker modules
     const wl_shm_mod = b.addModule("wl_shm", .{
@@ -63,6 +77,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    // See c_mod.addCMacro above for why: wl_shm.zig has its own standalone @cImport of
+    // unistd.h, hitting the same __ssp_real_* undefined-symbol link error under ReleaseSafe.
+    wl_shm_mod.addCMacro("_FORTIFY_SOURCE", "0");
     const wl_registry_mod = b.addModule("wl_registry", .{
         .root_source_file = b.path("src/wl_registry.zig"),
         .target = target,
@@ -164,7 +181,7 @@ pub fn build(b: *std.Build) void {
     main_mod.addOptions("build_options", platform_options);
 
     const exe = b.addExecutable(.{
-        .name = "wl-tunnel",
+        .name = "wayland-tunnel",
         .root_module = main_mod,
     });
     exe.linkLibC();
@@ -208,6 +225,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    // See c_mod.addCMacro above: wl_keepalive.zig has its own standalone @cImport.
+    keepalive_mod.addCMacro("_FORTIFY_SOURCE", "0");
     const keepalive = b.addExecutable(.{
         .name = "wl-keepalive",
         .root_module = keepalive_mod,
@@ -221,6 +240,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    // See c_mod.addCMacro above: stream-reader.zig has its own standalone @cImport.
+    reader_mod.addCMacro("_FORTIFY_SOURCE", "0");
     const stream_reader = b.addExecutable(.{
         .name = "stream-reader",
         .root_module = reader_mod,
