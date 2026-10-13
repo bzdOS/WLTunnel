@@ -33,6 +33,6 @@ Dates are ISO 8601. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1
 ### Origin
 
 Extracted from [bsdOS](https://github.com/bzdOS/bsdOS) (privacy-first FreeBSD mobile OS).
-In production as part of the the v0.1.x QEMU sandbox since June 2026.
+In production as part of the v0.1.x QEMU sandbox since June 2026.
 
 [0.1.3]: https://github.com/bzdOS/WLTunnel/releases/tag/v0.1.3
